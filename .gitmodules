@@ -1,0 +1,3 @@
+[submodule "pyfileselect-git"]
+	path = pyfileselect-git
+	url = https://github.com/not-na/pyfileselect.git

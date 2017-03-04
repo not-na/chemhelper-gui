@@ -29,3 +29,26 @@ class LewisRenderer(peng3d.gui.Container):
         super(LewisRenderer,self).__init__(*args,**kwargs)
         
         self.ch = ch
+        
+        self.initGUI()
+    
+    def initGUI(self):
+        self.initWidgets()
+    
+    def initWidgets(self):
+        pass
+    
+    def convert_to(self,other):
+        if other == "condensed":
+            pass
+        elif other == "iupac":
+            pass
+        elif other == "struct_lewis":
+            return
+        elif other == "struct_skeleton":
+            pass
+        else:
+            return # Ignore, should not happen, but possible
+    
+    def redraw_content(self):
+        pass

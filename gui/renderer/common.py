@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-#  condensed.py
+#  common.py
 #  
 #  Copyright 2017 notna <notna@apparat.org>
 #  
@@ -22,33 +22,7 @@
 #  
 #  
 
-import peng3d
-
-class CondensedRenderer(peng3d.gui.Container):
-    def __init__(self,ch,*args,**kwargs):
-        super(CondensedRenderer,self).__init__(*args,**kwargs)
-        
-        self.ch = ch
-        
-        self.initGUI()
-    
-    def initGUI(self):
-        self.initWidgets()
-    
-    def initWidgets(self):
-        pass
-    
-    def convert_to(self,other):
-        if other == "condensed":
-            return
-        elif other == "iupac":
-            pass
-        elif other == "struct_lewis":
-            pass
-        elif other == "struct_skeleton":
-            pass
-        else:
-            return # Ignore, should not happen, but possible
-    
-    def redraw_content(self):
-        pass
+# Based on some stackoverflow answer
+# Only based on frequency in functional groups, without weight for frequency of each group
+# TODO: make user-adjustable for different modes/purposes
+DEFAULT_ELEMENT_ORDER = ["C","O","N","S","P","F","Cl","Br","I","B"]

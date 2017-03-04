@@ -27,14 +27,22 @@ import peng3d
 
 import chemhelper
 
+import pyfileselect
+
 from . import renderer
+
+FILE_TYPES = [("SMILES File","*.smi"),("SMILES File","*.smiles"),("InChI File","*.inchi"),("All Files","*.*")]
 
 class Chemhelper(object):
     def __init__(self,peng):
         self.peng = peng
         
+        self.fname = None
+        
         self.curWorkspace = None
+        self.curWorkspaceObj = None
         # 60,65,66 seems like a nice background color
+        # Probably using 242,241,240 instead, default Ubuntu/GTK window background color
     
     # Initialization Code
     def initGUI(self):
@@ -45,8 +53,6 @@ class Chemhelper(object):
         self.peng.resourceMgr.addCategory("gui")
         
         self.initMenuMain()
-        self.initMenuExport()
-        self.initMenuSave()
         
         peng.window.changeMenu("main")
     # Init Menus
@@ -58,22 +64,6 @@ class Chemhelper(object):
         self.initSubMenuMainMain()
         
         self.m_main.changeSubMenu("main")
-    def initMenuExport(self):
-        # Init Menu Export
-        self.m_export = peng3d.GUIMenu("export",self.peng.window,self.peng)
-        self.peng.window.addMenu(self.m_export)
-        
-        self.initSubMenuExportFileselect()
-        
-        self.m_export.changeSubMenu("fileselect")
-    def initMenuSave(self):
-        # Init Menu Save
-        self.m_save = peng3d.GUIMenu("save",self.peng.window,self.peng)
-        self.peng.window.addMenu(self.m_save)
-        
-        self.initSubMenuSaveFileselect()
-        
-        self.m_save.changeSubMenu("fileselect")
     # Init SubMenus
     def initSubMenuMainMain(self):
         # Init SubMenu Main Main
@@ -98,12 +88,13 @@ class Chemhelper(object):
                                 pos=lambda sw,sh,bw,bh: ((bw+2)*0+6,6),
                                 size=[96,32],
                                 label="Export",
-                                borderstyle="oldshadow",
+                                borderstyle="gradient",
                                 )
         self.wmm_toolbar.addWidget(self.wmmt_export)
         def f():
-            self.peng.window.changeMenu("export")
-            self.reinit_m_export()
+            fname = pyfileselect.saveDialog(FILE_TYPES)
+            print("Exported to %s"%fname)
+            self.saveAs(fname)
         self.wmmt_export.addAction("click",f)
         
         # Add toolbar save
@@ -111,12 +102,15 @@ class Chemhelper(object):
                                 pos=lambda sw,sh,bw,bh: ((bw+2)*1+6,6),
                                 size=[96,32],
                                 label="Save",
-                                borderstyle="oldshadow",
+                                borderstyle="gradient",
                                 )
         self.wmm_toolbar.addWidget(self.wmmt_save)
         def f():
-            self.peng.window.changeMenu("save")
-            self.reinit_m_save()
+            if self.fname is None:
+                self.fname = pyfileselect.saveDialog(FILE_TYPES)
+            print("Saved to %s"%self.fname)
+            self.saveAs(self.fname)
+                
         self.wmmt_save.addAction("click",f)
         
         # Add toolbar convert
@@ -124,31 +118,20 @@ class Chemhelper(object):
                                 pos=lambda sw,sh,bw,bh: ((bw+2)*2+6,6),
                                 size=[96,32],
                                 label="Convert",
-                                borderstyle="oldshadow",
+                                borderstyle="gradient",
                                 )
         self.wmm_toolbar.addWidget(self.wmmt_convert)
         def f():
-            self.peng.window.changeMenu("convert")
-            self.reinit_m_convert()
+            pass
         self.wmmt_convert.addAction("click",f)
         
         self.initSubMenuMainMain_Condensed()
         self.initSubMenuMainMain_IUPAC()
         self.initSubMenuMainMain_StructuralLewis()
         self.initSubMenuMainMain_StructuralSkeleton()
+        #self.initSubMenuMainMain_Load()
+        #self.initSubMenuMainMain_Save()
         self.setWorkspace("iupac")
-    def initSubMenuExportFileselect(self):
-        # Init SubMenu Export Fileselect
-        self.me_fileselect = peng3d.SubMenu("fileselect",self.m_export,self.peng.window,self.peng)
-        self.m_export.addSubMenu(self.me_fileselect)
-        
-        self.me_fileselect.setBackground([242,241,240])
-    def initSubMenuSaveFileselect(self):
-        # Init SubMenu Save Fileselect
-        self.ms_fileselect = peng3d.SubMenu("fileselect",self.m_save,self.peng.window,self.peng)
-        self.m_save.addSubMenu(self.ms_fileselect)
-        
-        self.ms_fileselect.setBackground([242,241,240])
     # Init Workspaces
     def initSubMenuMainMain_Condensed(self):
         # Init Workspace Condensed
@@ -191,16 +174,13 @@ class Chemhelper(object):
         self.wmm_sskeleton.setBackground("oldshadow")
         self.wmm_sskeleton.visible=False
     
-    # Re-Init Code
-    def reinit_m_export(self):
-        pass
-    def reinit_m_save(self):
-        pass
-    
     # Runtime code
     def setWorkspace(self,workspace):
         if workspace==self.curWorkspace:
             return
+        
+        if self.curWorkspaceObj is not None:
+            self.curWorkspaceObj.convert_to(workspace)
         
         if self.curWorkspace is None:
             pass
@@ -217,13 +197,41 @@ class Chemhelper(object):
         
         if workspace=="condensed":
             self.wmm_condensed.visible = True
+            self.curWorkspaceObj = self.wmm_condensed
         elif workspace=="iupac":
             self.wmm_iupac.visible = True
+            self.curWorkspaceObj = self.wmm_iupac
         elif workspace=="struct_lewis":
             self.wmm_slewis.visible = True
+            self.curWorkspaceObj = self.wmm_slewis
         elif workspace=="struct_skeleton":
             self.wmm_sskeleton.visible = True
+            self.curWorkspaceObj = self.wmm_sskeleton
         else:
+            self.curWorkspaceObj = None # may make it able to recover data
             return # Ignore, may hide current workspace
         self.curWorkspace = workspace
+    
+    def saveAs(self,fname):
+        if fname is None:
+            # In Case of Cancel
+            return
+        elif fname.endswith("smi") or fname.endswith("smiles"):
+            # SMILES
+            mimetype = "chemical/x-daylight-smiles"
+        elif fname.endswith("inchi"):
+            # InChI
+            mimetype = "chemical/x-inchi"
+        else:
+            # Defaults to InChI
+            mimetype = "chemical/x-inchi"
+        
+        print("Saving to mimetype %s"%mimetype)
+        
+        if mimetype == "chemical/x-daylight-smiles":
+            print(self.curWorkspaceObj.formula.saveAsSMILES(fname))
+        elif mimetype == "chemical/x-inchi":
+            pass
+        else:
+            raise ValueError("Invalid Mime Type")
     
