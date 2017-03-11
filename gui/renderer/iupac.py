@@ -119,6 +119,10 @@ class IUPACRenderer(peng3d.gui.Container):
             l = "Invalid".format(**d)
         self.w_statuslabel.label = l
     
+    def setFormula(self,formula):
+        self.formula = formula
+        self.w_textbox.text = formula.name
+    
     def on_textchange(self):
         # Triggered every time the text changes
         # TODO: make asynchronous, e.g. prevent GUI from freezing during processing

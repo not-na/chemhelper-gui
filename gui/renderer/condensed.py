@@ -52,3 +52,6 @@ class CondensedRenderer(peng3d.gui.Container):
     
     def redraw_content(self):
         pass
+    
+    def setFormula(self,formula):
+        self.formula = formula

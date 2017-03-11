@@ -113,9 +113,24 @@ class Chemhelper(object):
                 
         self.wmmt_save.addAction("click",f)
         
+        # Add toolbar load
+        self.wmmt_load = peng3d.gui.Button("loadbtn",self.wmm_toolbar,self.peng.window,self.peng,
+                                pos=lambda sw,sh,bw,bh: ((bw+2)*2+6,6),
+                                size=[96,32],
+                                label="Load",
+                                borderstyle="gradient",
+                                )
+        self.wmm_toolbar.addWidget(self.wmmt_load)
+        def f():
+            fname = pyfileselect.openDialog(FILE_TYPES)
+            print("Loaded from %s"%fname)
+            self.loadFrom(fname)
+                
+        self.wmmt_load.addAction("click",f)
+        
         # Add toolbar convert
         self.wmmt_convert = peng3d.gui.Button("convertbtn",self.wmm_toolbar,self.peng.window,self.peng,
-                                pos=lambda sw,sh,bw,bh: ((bw+2)*2+6,6),
+                                pos=lambda sw,sh,bw,bh: ((bw+2)*3+6,6),
                                 size=[96,32],
                                 label="Convert",
                                 borderstyle="gradient",
@@ -228,10 +243,25 @@ class Chemhelper(object):
         
         print("Saving to mimetype %s"%mimetype)
         
-        if mimetype == "chemical/x-daylight-smiles":
-            print(self.curWorkspaceObj.formula.saveAsSMILES(fname))
-        elif mimetype == "chemical/x-inchi":
-            pass
-        else:
-            raise ValueError("Invalid Mime Type")
+        r = self.curWorkspaceObj.formula.dump(fname,mimetype)
+        print(r)
     
+    def loadFrom(self,fname):
+        if fname is None:
+            # In Case of Cancel
+            return
+        elif fname.endswith("smi") or fname.endswith("smiles"):
+            # SMILES
+            mimetype = "chemical/x-daylight-smiles"
+        elif fname.endswith("inchi"):
+            # InChI
+            mimetype = "chemical/x-inchi"
+        else:
+            # Defaults to InChI
+            mimetype = "chemical/x-inchi"
+        
+        print("Loading from mimetype %s"%mimetype)
+        
+        self.curWorkspaceObj.setFormula(self.curWorkspaceObj.formula.load(fname,mimetype))
+        
+        self.fname = fname # Makes exporting and saving easier
