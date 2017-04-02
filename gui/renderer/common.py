@@ -25,4 +25,4 @@
 # Based on some stackoverflow answer
 # Only based on frequency in functional groups, without weight for frequency of each group
 # TODO: make user-adjustable for different modes/purposes
-DEFAULT_ELEMENT_ORDER = ["C","O","N","S","P","F","Cl","Br","I","B"]
+DEFAULT_ELEMENT_ORDER = ["C"]#,"O","N","S","P","F","Cl","Br","I","B"]
