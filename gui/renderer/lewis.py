@@ -609,6 +609,15 @@ class DrawingArea(peng3d.gui.Widget):
                 #atom._drawinfo["bg_vlist"].colors=c*30
                 self.on_click_atom(atom,x,y,button,modifiers)
                 break # Prevents accidental multi-clicks
+        if len(self.submenu.formula.atoms)==0 \
+           and peng3d.gui.mouse_aabb([x,y],self.size,self.pos) \
+           and ((button==pyglet.window.mouse.LEFT and self.submenu.mode=="draw") \
+                or (button==pyglet.window.mouse.RIGHT and self.submenu.mode=="erase")):
+            # If no element was clicked
+            a = chemhelper.elements.ELEMENTS[self.submenu.activeElement](self.submenu.formula,name="%s #%s"%(self.submenu.activeElement,self.next_id))
+            self.submenu.formula.addAtom(a)
+            self.submenu.formula.fillWithHydrogen()
+            self.layout_formula()
     
     def on_click_atom(self,atom,x,y,button,modifiers):
         print("Clicked atom %s n=%s with button %s"%(atom.name,atom._drawinfo["id"],button))
