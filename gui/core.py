@@ -22,6 +22,7 @@
 #  
 #  
 
+import math
 import traceback
 
 import pyglet
@@ -34,6 +35,9 @@ import pyfileselect
 from . import renderer
 
 FILE_TYPES = [("SMILES File","*.smi"),("SMILES File","*.smiles"),("InChI File","*.inchi"),("All Files","*.*")]
+
+CONVERT_DEMO = True
+CONVERT_PRIMARY = ["iupac","struct_lewis"]
 
 class Chemhelper(object):
     def __init__(self,peng):
@@ -50,11 +54,29 @@ class Chemhelper(object):
     def initGUI(self):
         # Init GUI
         peng = self.peng
-        self.window = window = peng.createWindow(caption="ChemHelper v%s"%chemhelper.version.VERSION,resizable=True,vsync=True)
+        self.window = window = peng.createWindow(width=1680,height=768,caption="ChemHelper v%s"%chemhelper.version.VERSION,resizable=True,vsync=True)
+        
+        self.window.setIcons("chemhelper:icon_{size}")
+        
+        global t,tl
+        t,tl = peng.t,peng.tl
+        
+        # temporary until a proper menu is created
+        # TODO: add settings menu and accompanying config file
+        def switchlang_handler(symbol,modifiers,release):
+            if release:
+                return
+            langs = peng.i18n.discoverLangs("chemhelper")
+            # Uncomment the next line to be able to view the raw strings
+            #langs.append("__")
+            peng.i18n.setLang(langs[(langs.index(peng.i18n.lang)+1)%len(langs)])
+        peng.keybinds.add("f12","chemhelper:handler.lang.switch",switchlang_handler)
         
         self.peng.resourceMgr.addCategory("gui")
         
         self.initMenuMain()
+        
+        self.initDialogError()
         
         peng.window.changeMenu("main")
     # Init Menus
@@ -87,9 +109,10 @@ class Chemhelper(object):
         # Toolbar buttons
         # Add toolbar load
         self.wmmt_load = peng3d.gui.Button("loadbtn",self.wmm_toolbar,self.peng.window,self.peng,
-                                pos=lambda sw,sh,bw,bh: ((bw+2)*0+6,6),
-                                size=[96,32],
-                                label="Load",
+                                pos=[6,6],
+                                size=[-1,32],
+                                min_size=[96,32],
+                                label=tl("chemhelper:main.main.load.label"),
                                 borderstyle="oldshadow",
                                 )
         self.wmm_toolbar.addWidget(self.wmmt_load)
@@ -102,9 +125,10 @@ class Chemhelper(object):
         
         # Add toolbar save
         self.wmmt_save = peng3d.gui.Button("savebtn",self.wmm_toolbar,self.peng.window,self.peng,
-                                pos=lambda sw,sh,bw,bh: ((bw+2)*1+6,6),
-                                size=[96,32],
-                                label="Save",
+                                pos=lambda sw,sh,bw,bh: (self.wmmt_load.pos[0]+self.wmmt_load.size[0]+6,6),
+                                size=[-1,32],
+                                min_size=[96,32],
+                                label=tl("chemhelper:main.main.save.label"),
                                 borderstyle="oldshadow",
                                 )
         self.wmm_toolbar.addWidget(self.wmmt_save)
@@ -118,29 +142,36 @@ class Chemhelper(object):
         
         # Add toolbar export
         self.wmmt_export = peng3d.gui.Button("exportbtn",self.wmm_toolbar,self.peng.window,self.peng,
-                                pos=lambda sw,sh,bw,bh: ((bw+2)*2+6,6),
-                                size=[96,32],
-                                label="Export",
+                                pos=lambda sw,sh,bw,bh: (self.wmmt_save.pos[0]+self.wmmt_save.size[0]+6,6),
+                                size=[-1,32],
+                                min_size=[96,32],
+                                label=tl("chemhelper:main.main.export.label"),
                                 borderstyle="oldshadow",
                                 )
         self.wmm_toolbar.addWidget(self.wmmt_export)
         def f():
             fname = pyfileselect.saveDialog(FILE_TYPES)
+            self.fname = fname
             print("Exported to %s"%fname)
             self.saveAs(fname)
         self.wmmt_export.addAction("click",f)
         
         # Add toolbar convert
         self.wmmt_convert = peng3d.gui.Button("convertbtn",self.wmm_toolbar,self.peng.window,self.peng,
-                                pos=lambda sw,sh,bw,bh: ((bw+2)*3+6,6),
-                                size=[96,32],
-                                label="Convert",
+                                pos=lambda sw,sh,bw,bh: (self.wmmt_export.pos[0]+self.wmmt_export.size[0]+6,6),
+                                size=[-1,32],
+                                min_size=[96,32],
+                                label=tl("chemhelper:main.main.convert.label"),
                                 borderstyle="oldshadow",
                                 )
         self.wmm_toolbar.addWidget(self.wmmt_convert)
         def f():
-            self.curWorkspaceObj.visible=False
-            self.reInitConvert()
+            if not CONVERT_DEMO:
+                self.curWorkspaceObj.visible=False
+                self.reInitConvert()
+            else:
+                # Cycle through demo modes
+                self.setWorkspace(CONVERT_PRIMARY[(CONVERT_PRIMARY.index(self.curWorkspace)+1)%len(CONVERT_PRIMARY)])
         self.wmmt_convert.addAction("click",f)
         
         self.initSubMenuMainMain_Condensed()
@@ -206,7 +237,7 @@ class Chemhelper(object):
                                 pos=lambda sw,sh, bw,bh: [((sw*0.05)+(((sw*0.9)/3)*0))+((sw*0.9)/3-(sw*0.9)/3.1)/2,sh-bh-sh*0.1],
                                 # TODO: simplify formulae, too lazy to do right now...
                                 size=lambda sw,sh: [(sw*0.9)/3.1,64],
-                                label="",
+                                label=tl("",False),
                                 borderstyle="oldshadow",
                                 )
         self.wmm_convert.addWidget(self.wmmc_btn1)
@@ -218,7 +249,7 @@ class Chemhelper(object):
         self.wmmc_btn2 = peng3d.gui.Button("btn2",self.wmm_convert,self.peng.window,self.peng,
                                 pos=lambda sw,sh, bw,bh: [((sw*0.05)+(((sw*0.9)/3)*1))+((sw*0.9)/3-(sw*0.9)/3.1)/2,sh-bh-sh*0.1],
                                 size=lambda sw,sh: [(sw*0.9)/3.1,64],
-                                label="",
+                                label=tl("",False),
                                 borderstyle="oldshadow",
                                 )
         self.wmm_convert.addWidget(self.wmmc_btn2)
@@ -230,7 +261,7 @@ class Chemhelper(object):
         self.wmmc_btn3 = peng3d.gui.Button("btn3",self.wmm_convert,self.peng.window,self.peng,
                                 pos=lambda sw,sh, bw,bh: [((sw*0.05)+(((sw*0.9)/3)*2))+((sw*0.9)/3-(sw*0.9)/3.1)/2,sh-bh-sh*0.1],
                                 size=lambda sw,sh: [(sw*0.9)/3.1,64],
-                                label="",
+                                label=tl("",False),
                                 borderstyle="oldshadow",
                                 )
         self.wmm_convert.addWidget(self.wmmc_btn3)
@@ -242,7 +273,7 @@ class Chemhelper(object):
         self.wmmc_cancel = peng3d.gui.Button("cancelbtn",self.wmm_convert,self.peng.window,self.peng,
                                 pos=lambda sw,sh, bw,bh: [((sw*0.05)+(((sw*0.9)/3)*1))+((sw*0.9)/3-(sw*0.9)/3.1)/2,sh-bh*5-sh*0.1],
                                 size=lambda sw,sh: [(sw*0.9)/3.1,64],
-                                label="Cancel",
+                                label=tl("chemhelper:main.convert.cancel.label"),
                                 borderstyle="oldshadow",
                                 )
         self.wmm_convert.addWidget(self.wmmc_cancel)
@@ -256,27 +287,33 @@ class Chemhelper(object):
             self.wmmc_btn3.label=""
         self.wmmc_cancel.addAction("click",f)
     
+    def initDialogError(self):
+        self.wmd_error = peng3d.gui.DialogSubMenu("error",self.m_main,self.peng.window,self.peng,"oldshadow",label_main=tl("chemhelper:main.error.label.default"))
+        self.wmd_error.setBackground([242,241,240])
+        
+        self.m_main.addSubMenu(self.wmd_error)
+    
     # Runtime code
     def reInitConvert(self):
         if self.wmm_convert.visible:
             return # Prevent it from being pressed too soon
         self.wmm_convert.visible = True
         if self.curWorkspace=="condensed":
-            self.wmmc_btn1.label="IUPAC Name"
-            self.wmmc_btn2.label="Lewis Structure"
-            self.wmmc_btn3.label="Skeletal Formula"
+            self.wmmc_btn1.label=tl("chemhelper:common.iupac")
+            self.wmmc_btn2.label=tl("chemhelper:common.lewis")
+            self.wmmc_btn3.label=tl("chemhelper:common.skeleton")
         elif self.curWorkspace=="iupac":
-            self.wmmc_btn1.label="Condensed Formula"
-            self.wmmc_btn2.label="Lewis Structure"
-            self.wmmc_btn3.label="Skeletal Formula"
+            self.wmmc_btn1.label=tl("chemhelper:common.condensed")
+            self.wmmc_btn2.label=tl("chemhelper:common.lewis")
+            self.wmmc_btn3.label=tl("chemhelper:common.skeleton")
         elif self.curWorkspace=="struct_lewis":
-            self.wmmc_btn1.label="Condensed Formula"
-            self.wmmc_btn2.label="IUPAC Name"
-            self.wmmc_btn3.label="Skeletal Formula"
+            self.wmmc_btn1.label=tl("chemhelper:common.condensed")
+            self.wmmc_btn2.label=tl("chemhelper:common.iupac")
+            self.wmmc_btn3.label=tl("chemhelper:common.skeleton")
         elif self.curWorkspace=="struct_skeleton":
-            self.wmmc_btn1.label="Condensed Formula"
-            self.wmmc_btn2.label="IUPAC Name"
-            self.wmmc_btn3.label="Lewis Structure"
+            self.wmmc_btn1.label=tl("chemhelper:common.condensed")
+            self.wmmc_btn2.label=tl("chemhelper:common.iupac")
+            self.wmmc_btn3.label=tl("chemhelper:common.lewis")
         else:
             return # May cause errors later on
     
@@ -325,10 +362,14 @@ class Chemhelper(object):
         if self.curWorkspaceObj is not None:
             try:
                 self.curWorkspaceObj.convert_to(workspace)
-            except Exception:
-                # Make the workspace visible again and print the stacktrace
+            except Exception as e:
+                # Make the workspace visible again and display the stacktrace in a dialog
                 print("ERROR during conversion, aborting conversion:")
                 self.curWorkspaceObj.visible=True
+                
+                self.wmd_error.label_main=tl("chemhelper:main.error.label.convert").format(error=(e.args[0] if len(e.args)>=1 else "Unknown"))
+                self.wmd_error.activate()
+                
                 traceback.print_exc()
                 return
         

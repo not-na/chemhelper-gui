@@ -32,6 +32,7 @@ import peng3d
 from peng3d.gui.widgets import mouse_aabb
 
 import chemhelper
+from chemhelper import errors
 
 from . import common
 
@@ -69,6 +70,9 @@ class LewisRenderer(peng3d.gui.Container):
         self.peng.registerEventHandler("on_resize",self.on_resize)
     
     def initGUI(self):
+        global t,tl
+        t,tl = self.peng.t,self.peng.tl
+        
         self.initWidgets()
     
     def initWidgets(self):
@@ -86,7 +90,7 @@ class LewisRenderer(peng3d.gui.Container):
         self.ws_erase = ElementButton("erasebtn",self,self.peng.window,self.peng,
                                 pos=[0,0],
                                 size=[BUTTON_SIZE,BUTTON_SIZE],
-                                label="Erase",
+                                label=tl("chemhelper:main.lewis.erase.label"),
                                 borderstyle="oldshadow",
                                 )
         self.addWidget(self.ws_erase)
@@ -135,7 +139,7 @@ class LewisRenderer(peng3d.gui.Container):
         n_elements = min(n_buttons-2,len(self.element_buttons))
         
         # Update Bindchange and Erase
-        self.ws_erase.pos=[4,h-4-(2*BUTTON_SIZE)]#[4,h-4-(n_buttons*BUTTON_SIZE)]
+        self.ws_erase.pos=[4,h-4-((n_elements+1)*BUTTON_SIZE)]#[4,h-4-(n_buttons*BUTTON_SIZE)]
         # DISABLED see initSidebarButtons
         #self.ws_bindchange.pos=[4,h-4-((n_buttons-1)*BUTTON_SIZE)]
         
@@ -195,10 +199,24 @@ class LewisRenderer(peng3d.gui.Container):
         self.w_drawarea.redraw()
     
     def setFormula(self,formula):
-        self.w_drawarea.cleanup()
-        self.formula = formula
-        self.w_drawarea.layout_formula()
-        self.redraw_content()
+        try:
+            self.w_drawarea.cleanup()
+            self.formula = formula
+            self.w_drawarea.layout_formula()
+            self.redraw_content()
+        except Exception as e:
+            print("Exception during Layout")
+            
+            # Switches the workspace without converting the molecule
+            # This prevents multiple dialogues at the same time, but may cause even more data to be lost
+            self.ch.wmm_iupac.visible = True
+            self.ch.wmm_slewis.visible = False
+            self.ch.curWorkspaceObj = self.ch.wmm_iupac
+            
+            self.wmd_error.label_main=tl("chemhelper:main.error.label.layout").format(exc=str(e),error=(e.args[0] if len(e.args)>=1 else "Unknown"))
+            self.wmd_error.activate()
+            
+            import traceback;traceback.print_exc()
     
     def on_resize(self,width,height):
         self.updateSidebarButtons()
@@ -425,6 +443,10 @@ class DrawingArea(peng3d.gui.Widget):
                 elif neighbour.symbol=="C":
                     # Found a branch
                     self.layout_branch(bbone,neighbour,c)
+                elif neighbour.symbol=="O":
+                    # Hydroxy group
+                    # Erlenmeyer rule says that two hydroxy groups on adjacent carbons should on opposing sides of the backbone
+                    self.layout_hydroxy(bbone,neighbour,c)
                 else:
                     raise errors.UnsupportedElementError("Element '%s' is not currently supported"%neighbour.symbol)
         
@@ -435,6 +457,9 @@ class DrawingArea(peng3d.gui.Widget):
                 
                 parent = list(atom.bindings.keys())[0] # The Carbon it is bound to
                 #p_dinfo = parent._drawinfo
+                if parent.symbol=="O":
+                    # skip oxygen-based hydrogen
+                    continue
                 
                 slot = self.layout_atom_at_base(parent,atom)
                 
@@ -490,6 +515,59 @@ class DrawingArea(peng3d.gui.Widget):
             if not s:
                 break
         print("Finished")
+    def layout_hydroxy(self,bbone,start,c):
+        print("Layout hydroxy group at %s"%(bbone.index(c)+1))
+        self.assertAtom(start)
+        
+        bb_i = bbone.index(c)
+        
+        # first, find the position of neighbouring hydroxy groups
+        # left neighbour carbon
+        if bb_i<1:
+            # already at the left end
+            l_h = "right" # will place the hydroxyl group at the left
+        elif bb_i==len(bbone):
+            # at the right end
+            l_h = "left" # will place the hydroxyl group at the right
+        else:
+            l = bbone[bb_i-1]
+            o = None
+            for neighbour in l.bindings:
+                if neighbour.symbol=="O":
+                    if o is not None:
+                        # double hydroxy groups on the left, our position does not matter
+                        o = None
+                        break
+                    o = neighbour
+                    break
+            if o is None:
+                # did not find any hydroxy groups on the left
+                # free choice, defaults to UP, but inverted required here
+                l_h = "down"
+            else:
+                # Find the slot the hydroxyl group occupies
+                slot = None
+                for k,v in l._drawinfo["layout_slots"].items():
+                    if v == o:
+                        slot = k
+                        break
+                if slot is None:
+                    raise errors.InternalError("Could not find oxygen of hydroxyl group of neighbour carbon in layout")
+                l_h = slot
+        
+        # position the group opposite the neighbouring hydroxyl group
+        self.layout_pos_at_slot(c,start,LAYOUT_SLOT_INVERT[l_h])
+        
+        # position the hydrogen in line
+        h = None
+        for neighbour in start.bindings:
+            if neighbour.symbol=="H":
+                h = neighbour
+        if h is None:
+            raise errors.InvalidFormulaError("Could not find hydrogen atom of hydroxyl group at carbon #%s"%(bb_i+1))
+        self.layout_pos_at_slot(start,h,LAYOUT_SLOT_INVERT[l_h])
+        
+        print("Finished, slot is %s"%LAYOUT_SLOT_INVERT[l_h])
         
     def layout_find_free_slot(self,atom,order=None):
         self.assertAtom(atom)
@@ -610,7 +688,7 @@ class DrawingArea(peng3d.gui.Widget):
                 self.on_click_atom(atom,x,y,button,modifiers)
                 break # Prevents accidental multi-clicks
         if len(self.submenu.formula.atoms)==0 \
-           and peng3d.gui.mouse_aabb([x,y],self.size,self.pos) \
+           and peng3d.util.gui.mouse_aabb([x,y],self.size,self.pos) \
            and ((button==pyglet.window.mouse.LEFT and self.submenu.mode=="draw") \
                 or (button==pyglet.window.mouse.RIGHT and self.submenu.mode=="erase")):
             # If no element was clicked

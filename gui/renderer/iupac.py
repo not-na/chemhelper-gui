@@ -51,8 +51,15 @@ class IUPACRenderer(peng3d.gui.Container):
         self.parse_valid = False
         
         self.initGUI()
+        
+        # required to make the output appear in the correct language
+        # note that this does cause a re-parse of the molecule
+        self.peng.i18n.addAction("setlang",self.on_textchange)
     
     def initGUI(self):
+        global t,tl
+        t,tl = self.peng.t,self.peng.tl
+        
         self.initWidgets()
     
     def initWidgets(self):
@@ -72,7 +79,7 @@ class IUPACRenderer(peng3d.gui.Container):
                                 borderstyle="material",
                                 #border=[2,2],
                                 text=text,
-                                default="Enter IUPAC-Conforming Formula here",
+                                default=tl("chemhelper:main.iupac.textbox.default"),
                                 allow_overflow=True,
                                 )
         self.addWidget(self.w_textbox)
@@ -83,7 +90,7 @@ class IUPACRenderer(peng3d.gui.Container):
         self.w_statuslabel = peng3d.gui.Label("statuslabel",self,self.peng.window,self.peng,
                                 pos=lambda sw,sh, bw,bh: (16,sh-bh-64),
                                 size=lambda sw,sh: (sw-32,32),
-                                label="",
+                                label=tl("chemhelper:main.iupac.status.label"),
                                 label_cls=pyglet.text.HTMLLabel,
                                 multiline=True,
                                 )
@@ -120,7 +127,7 @@ class IUPACRenderer(peng3d.gui.Container):
             if self.w_statuslabel.label!=self.parse_text:
                 self.w_statuslabel.label = self.parse_text
                 self.w_statuslabel.redraw_label()
-                self.ch.wmmt_convert.enabled = self.parse_valid
+                self.ch.wmmt_convert.enabled = True#self.parse_valid
             self.parse_lock.release()
     
     def setFormula(self,formula):
@@ -134,7 +141,7 @@ class IUPACRenderer(peng3d.gui.Container):
         # Prevents locking this function if parsing is ongoing
         if self.parse_lock.acquire(blocking=False):
             self.redraw_content()
-            self.w_statuslabel.label = "Calculating..."
+            self.w_statuslabel.label = t("chemhelper:main.iupac.status.calc") # t instead of tl, will be redrawn anyway on setlang
             self.w_statuslabel.redraw_label()
             self.parse_lock.release()
         self.parse_event.set()
@@ -154,7 +161,7 @@ class IUPACRenderer(peng3d.gui.Container):
             except Exception:
                 print("Exception in parse thread:")
                 import traceback;traceback.print_exc()
-                self.parse_text = "ERROR"
+                self.parse_text = t("chemhelper:main.iupac.status.error")
                 self.parse_valid = False
     
     def _parseThread_parseSingle(self):
@@ -165,6 +172,7 @@ class IUPACRenderer(peng3d.gui.Container):
         rev = ""
         ereason = "Unknown"
         err = None
+        nameable = False
         
         try:
             c = self.formula.asStructuralFormula()
@@ -174,20 +182,27 @@ class IUPACRenderer(peng3d.gui.Container):
             
             count = c.countAtoms()
             
-            rev = c.asIUPACName().name
-            
             valid = True
-        except chemhelper.errors.UnsupportedFormulaTypeError as e:
-            # TODO: detect if there is an actual error, and display it
-            valid = False
-            ereason = e.args[0]
-            err = e
+            try:
+                print("Reverse...")
+                rev = c.asIUPACName().name
+                print("Reverse sucessfull!")
+                
+                nameable = True
+            except Exception as e:
+                nameable = False
+                ereason = e.args[0] if len(e.args)>=1 else "Unknown"
+                err = e
+                import traceback;traceback.print_exc()
         except Exception as e:
             valid = False
             # Ignore exception
-            ereason = e.args[0]
+            # If clause is here to prevent this thread from breaking due to missing exception reason
+            ereason = e.args[0] if len(e.args)>=1 else "Unknown"
             err = e
             import traceback;traceback.print_exc()
+        
+        print("Nameable: %s"%nameable)
         
         count["C"] = count.get("C",0)
         count["H"] = count.get("H",0)
@@ -195,7 +210,7 @@ class IUPACRenderer(peng3d.gui.Container):
         # Should be true if the error was not reported with a custom exception, as should be the case
         # This is just here to inform the user that the error is not directly the users fault
         # The locals check at the beginning is required since the err var seems to be deleted sometimes...
-        internal_error = err.__class__ in [chemhelper.errors.InternalError,ValueError,TypeError,IndexError,RuntimeError,KeyError]
+        internal_error = err.__class__ in [chemhelper.errors.InternalError,ValueError,TypeError,IndexError,RuntimeError,KeyError,UnboundLocalError,NameError]
         
         # Generates data to be used in message formatting
         d = {"valid":valid,
@@ -204,29 +219,38 @@ class IUPACRenderer(peng3d.gui.Container):
              "count":count,
              "rev":rev,
              "ereason":ereason,
+             "nameable":nameable,
              "interror":" (Internal Error '%s')"%err.__class__.__name__ if internal_error else "",
              }
         
         l = ""
         if self.formula.name == "":
-            pass
+            l+=t("chemhelper:main.iupac.status.empty")
         elif valid and converted:
             # Disabled since element counts are displayed below
             #l+= "Carbon: {count[C]} Hydrogen: {count[H]}".format(**d)
             
-            l+="<br/>Sum Formula: "
+            #l+="<br/>Sum Formula: "
+            sum_formula = ""
             for element in ["C","H","O"]:
                 if count.get(element,0)==0:
                     continue
                 elif count[element]==1:
-                    l+=element
+                    sum_formula+=element
                 else:
-                    l+="%s<sub>%s</sub>"%(element,count[element])
+                    #l+="%s<sub>%s</sub>"%(element,count[element])
+                    sum_formula+=t("chemhelper:main.iupac.out.sum.element").format(element=element,count=count[element])
+            l+=t("chemhelper:main.iupac.out.sum").format(sum_formula=sum_formula)
             
-            if rev!=self.formula.name:
-                l+="<br/>Actual Name: {rev}".format(**d)
+            if rev!=self.formula.name and nameable:
+                #l+="<br/>Actual Name: {rev}".format(**d)
+                l+=t("chemhelper:main.iupac.out.aname").format(**d)
+            if not nameable:
+                l+=t("chemhelper:main.iupac.out.notnameable").format(**d)
         else:
-            l+= "Invalid<br/>Reason:<br/>{ereason}{interror}".format(**d)
-        l+="</font>"
+            #l+= "Invalid<br/>Reason:<br/>{ereason}{interror}".format(**d)
+            l+=t("chemhelper:main.iupac.out.invalid").format(**d)
+        #l+="</font>"
+        l+=t("chemhelper:main.iupac.out.foot").format(**d)
         
         return l,valid
