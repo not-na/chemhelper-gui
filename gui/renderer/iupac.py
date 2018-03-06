@@ -232,7 +232,7 @@ class IUPACRenderer(peng3d.gui.Container):
             
             #l+="<br/>Sum Formula: "
             sum_formula = ""
-            for element in ["C","H","O"]:
+            for element in ["C","H","O","F","Cl","Br","I"]:
                 if count.get(element,0)==0:
                     continue
                 elif count[element]==1:

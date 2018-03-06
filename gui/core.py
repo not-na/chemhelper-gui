@@ -430,6 +430,15 @@ class Chemhelper(object):
         
         print("Loading from mimetype %s"%mimetype)
         
-        self.curWorkspaceObj.setFormula(self.curWorkspaceObj.formula.load(fname,mimetype))
+        try:
+            self.curWorkspaceObj.setFormula(self.curWorkspaceObj.formula.load(fname,mimetype))
+        except Exception as e:
+            # May happen if the file is invalid
+            self.wmd_error.label_main=tl("chemhelper:main.error.label.load").format(
+                        exc=str(e),
+                        error=(e.args[0] if len(e.args)>=1 else "Unknown"),
+                        fname=fname,
+                        )
+            self.wmd_error.activate()
         
         self.fname = fname # Makes exporting and saving easier

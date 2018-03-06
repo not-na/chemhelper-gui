@@ -213,8 +213,8 @@ class LewisRenderer(peng3d.gui.Container):
             self.ch.wmm_slewis.visible = False
             self.ch.curWorkspaceObj = self.ch.wmm_iupac
             
-            self.wmd_error.label_main=tl("chemhelper:main.error.label.layout").format(exc=str(e),error=(e.args[0] if len(e.args)>=1 else "Unknown"))
-            self.wmd_error.activate()
+            self.ch.wmd_error.label_main=tl("chemhelper:main.error.label.layout").format(exc=str(e),error=(e.args[0] if len(e.args)>=1 else "Unknown"))
+            self.ch.wmd_error.activate()
             
             import traceback;traceback.print_exc()
     
@@ -447,6 +447,10 @@ class DrawingArea(peng3d.gui.Widget):
                     # Hydroxy group
                     # Erlenmeyer rule says that two hydroxy groups on adjacent carbons should on opposing sides of the backbone
                     self.layout_hydroxy(bbone,neighbour,c)
+                elif neighbour.symbol in ["F","Cl","Br","I"]:
+                    # Halogen derivative
+                    # Uses same algorithm as hydroxy groups
+                    self.layout_halogen(bbone,neighbour,c)
                 else:
                     raise errors.UnsupportedElementError("Element '%s' is not currently supported"%neighbour.symbol)
         
@@ -568,7 +572,10 @@ class DrawingArea(peng3d.gui.Widget):
         self.layout_pos_at_slot(start,h,LAYOUT_SLOT_INVERT[l_h])
         
         print("Finished, slot is %s"%LAYOUT_SLOT_INVERT[l_h])
-        
+    def layout_halogen(self,bbone,start,c):
+        parent = list(start.bindings.keys())[0] # The Carbon it is bound to
+        slot = self.layout_atom_at_base(parent,start)
+    
     def layout_find_free_slot(self,atom,order=None):
         self.assertAtom(atom)
         dinfo = atom._drawinfo
