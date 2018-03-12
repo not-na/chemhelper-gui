@@ -698,6 +698,8 @@ class DrawingArea(peng3d.gui.Widget):
            and peng3d.util.gui.mouse_aabb([x,y],self.size,self.pos) \
            and ((button==pyglet.window.mouse.LEFT and self.submenu.mode=="draw") \
                 or (button==pyglet.window.mouse.RIGHT and self.submenu.mode=="erase")):
+            if self.submenu.activeElement!="C":
+                return
             # If no element was clicked
             a = chemhelper.elements.ELEMENTS[self.submenu.activeElement](self.submenu.formula,name="%s #%s"%(self.submenu.activeElement,self.next_id))
             self.submenu.formula.addAtom(a)
