@@ -89,6 +89,7 @@ ChemHelper v$version
 \\documentclass{article}
 \\usepackage{graphicx}
 \\usepackage[a4paper, portrait, margin=1.5cm]{geometry}
+\\usepackage{hyperref}
 
 \\begin{document}
 
@@ -100,12 +101,34 @@ ChemHelper v$version
 
 \\includegraphics[width=1\\textwidth]{$pngpath}
 
+\\vspace{0.7cm}
+
+{\\LARGE IUPAC Name:}
+
+\\vspace{0.3cm}
+
+{\\huge $iupacname}
+
 \\vspace{1cm}
 
-{\\LARGE $iupacname}
+{\\LARGE Sum Formula:}
+
+\\vspace{0.3cm}
+
+{\\huge $sum_formula}
+
+\\vspace{1.5cm}
+
+{\\large Get ChemHelper here: \\url{https://github.com/not-na/chemhelper-gui}}
+
+\\vspace{0.5cm}
+
+{\\large Or scan the QR-Code to the right}
+
+
+\\hfill \\includegraphics[width=3cm]{$qrpath_png}
 
 \\end{center}
-
 
 \\vfill
 
@@ -113,6 +136,8 @@ ChemHelper v$version
 
 \\end{document}
 """)
+
+EXPORT_LATEX_ELEMENT_STR = "{element}\\textsubscript{{{count}}}"
 
 CONVERT_DEMO = True
 CONVERT_PRIMARY = ["iupac","struct_lewis"]
@@ -599,6 +624,9 @@ class Chemhelper(object):
             "version":chemhelper.version.VERSION,
             "pngpath":pname,
             "iupacname":str(iupac),
+            "sum_formula":self.wmm_slewis.formula.getSumFormula(element_str=EXPORT_LATEX_ELEMENT_STR),
+            "qrpath_png":self.peng.resourceMgr.resourceNameToPath("chemhelper:qr.github",".png"),
+            "qrpath_svg":self.peng.resourceMgr.resourceNameToPath("chemhelper:qr.github",".svg"),
         }
         latex = EXPORT_LATEX_TEMPLATE.substitute(data)
         
@@ -609,21 +637,47 @@ class Chemhelper(object):
         
         return latex
     
-    def export_image(self,fname):
+    def export_image(self,fname,w=None,h=None,ratio=None):
         
         # Gets the color/image buffer
         buf = pyglet.image.get_buffer_manager().get_color_buffer()
         
-        # Generate the appropriate coordinates and size
-        sw,sh = self.window.width,self.window.height
+        if w is None and h is None:
+            # Exports the whole DrawingArea
+            sw,sh = self.window.width, self.window.height
+            
+            x = renderer.lewis.BUTTON_SIZE+8
+            y = 8
+            
+            w = sw-renderer.lewis.BUTTON_SIZE*2-16 # All from DrawingArea, but second BUTTON_SIZE is for centering
+            h = sh-32-12 -16 # -16 is from DrawingArea, rest from Chemhelper
+        else:
+            # TODO: fix this
+            # Should export only relevant parts while keeping to the ratio
+            # Mainly intended for use with export_latex/export_pdf
+            
+            # Generate the appropriate coordinates and size
+            sw,sh = self.window.width,self.window.height
+            
+            # DrawingArea width, height
+            dw = sw-renderer.lewis.BUTTON_SIZE*2-16 # all from DrawingArea, but second BUTTON_SIZE is to center it
+            dh = sh-32-12 -16 # -16 is from DrawingArea, rest from Chemhelper
+            
+            # Actual width, height
+            w = min(480,dw)
+            h = min(640,dh)
+            
+            # Centered on dw,dh
+            dx = dw/2-w/2
+            dy = dh/2-h/2
+            
+            # Global Offset
+            ox = renderer.lewis.BUTTON_SIZE+8
+            oy = 8
+            
+            x,y = ox+dx,oy+dy
         
-        x = renderer.lewis.BUTTON_SIZE+8
-        y = 8
-        
-        w = sw-renderer.lewis.BUTTON_SIZE*2-16 # all from DrawingArea, but second BUTTON_SIZE is to center it
-        h = sh-32-12 -16 # -16 is from DrawingArea, rest from Chemhelper
-        
-        buf_reg = buf.get_region(x,y,w,h)
+        buf_reg = buf.get_region(int(x),int(y),int(w),int(h))
         
         buf_reg.save(fname)
     

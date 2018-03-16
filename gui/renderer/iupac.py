@@ -138,6 +138,13 @@ class IUPACRenderer(peng3d.gui.Container):
         # Triggered every time the text changes
         # TODO: make asynchronous, e.g. prevent GUI from freezing during processing
         
+        if self.w_textbox.text.endswith("\n") or self.w_textbox.text.endswith("\r"):
+            # If enter was pressed, just convert the molecule
+            self.w_textbox.text.rstrip("\n\r")
+            self.ch.setWorkspace("struct_lewis")
+            return
+        self.w_textbox.text.rstrip("\t")
+        
         # Prevents locking this function if parsing is ongoing
         if self.parse_lock.acquire(blocking=False):
             self.redraw_content()
@@ -231,15 +238,16 @@ class IUPACRenderer(peng3d.gui.Container):
             #l+= "Carbon: {count[C]} Hydrogen: {count[H]}".format(**d)
             
             #l+="<br/>Sum Formula: "
-            sum_formula = ""
-            for element in ["C","H","O","F","Cl","Br","I"]:
-                if count.get(element,0)==0:
-                    continue
-                elif count[element]==1:
-                    sum_formula+=element
-                else:
-                    #l+="%s<sub>%s</sub>"%(element,count[element])
-                    sum_formula+=t("chemhelper:main.iupac.out.sum.element").format(element=element,count=count[element])
+            #sum_formula = ""
+            #for element in ["C","H","O","F","Cl","Br","I"]:
+            #    if count.get(element,0)==0:
+            #        continue
+            #    elif count[element]==1:
+            #        sum_formula+=element
+            #    else:
+            #        #l+="%s<sub>%s</sub>"%(element,count[element])
+            #        sum_formula+=t("chemhelper:main.iupac.out.sum.element").format(element=element,count=count[element])
+            sum_formula = c.getSumFormula(element_str=t("chemhelper:main.iupac.out.sum.element"))
             l+=t("chemhelper:main.iupac.out.sum").format(sum_formula=sum_formula)
             
             if rev!=self.formula.name and nameable:
