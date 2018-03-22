@@ -99,7 +99,11 @@ ChemHelper v$version
 
 \\vspace{1cm}
 
-\\includegraphics[width=1\\textwidth]{$pngpath}
+\\end{center}
+
+\\centerline{\\includegraphics[height=0.5\\textheight]{$pngpath}}
+
+\\begin{center}
 
 \\vspace{0.7cm}
 
@@ -182,6 +186,10 @@ class Chemhelper(object):
         self.initDialogError()
         
         peng.window.changeMenu("main")
+        
+        if platform.system()!="Windows":
+            # Can not be done early, causes weird issues under Windows
+            self.window.maximize()
     # Init Menus
     def initMenuMain(self):
         # Init Menu Main

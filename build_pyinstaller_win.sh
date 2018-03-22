@@ -8,8 +8,10 @@ pip install -r req_winbuild.txt
 pip install git+git://github.com/not-na/peng3d.git
 
 pyinstaller --clean \
+            --noconfirm \
             --onefile \
             --windowed \
             --name ChemHelper \
+            --icon './assets/chemhelper/icon_256.ico' \
             --add-data './assets/;assets/' \
             main.py

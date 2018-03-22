@@ -47,6 +47,20 @@ LAYOUT_SLOT_INVERT = {
     "right":"left",
     }
 
+LAYOUT_SLOT_CLOCKWISE = {
+    "up":"right",
+    "down":"left",
+    "left":"up",
+    "right":"down",
+    }
+
+LAYOUT_SLOT_COUNTERCLOCKWISE = {
+    "up":"left",
+    "down":"right",
+    "left":"down",
+    "right":"up",
+    }
+
 class LayoutError(RuntimeError):pass
 
 class LewisRenderer(peng3d.gui.Container):
@@ -221,7 +235,7 @@ class LewisRenderer(peng3d.gui.Container):
     def on_resize(self,width,height):
         self.updateSidebarButtons()
         if self.ready:
-            self.bg.redraw_bg()
+            self.redraw()
 
 class ElementButton(peng3d.gui.ToggleButton):
     def on_mouse_press(self,x,y,button,modifiers):
@@ -451,6 +465,9 @@ class DrawingArea(peng3d.gui.Widget):
                     # Halogen derivative
                     # Uses same algorithm as hydroxy groups
                     self.layout_halogen(bbone,neighbour,c)
+                elif neighbour.symbol == "N":
+                    # Nitrogen/Amino Group
+                    self.layout_amino(bbone,neighbour,c)
                 else:
                     raise errors.UnsupportedElementError("Element '%s' is not currently supported"%neighbour.symbol)
         
@@ -461,8 +478,8 @@ class DrawingArea(peng3d.gui.Widget):
                 
                 parent = list(atom.bindings.keys())[0] # The Carbon it is bound to
                 #p_dinfo = parent._drawinfo
-                if parent.symbol=="O":
-                    # skip oxygen-based hydrogen
+                if parent.symbol in ["O","N"]:
+                    # skip hydrogen of functional groups
                     continue
                 
                 slot = self.layout_atom_at_base(parent,atom)
@@ -573,8 +590,47 @@ class DrawingArea(peng3d.gui.Widget):
         
         print("Finished, slot is %s"%LAYOUT_SLOT_INVERT[l_h])
     def layout_halogen(self,bbone,start,c):
-        parent = list(start.bindings.keys())[0] # The Carbon it is bound to
-        slot = self.layout_atom_at_base(parent,start)
+        slot = self.layout_atom_at_base(c,start)
+    def layout_amino(self,bbone,start,c):
+        slot = self.layout_atom_at_base(c,start)
+        
+        h = []
+        o = []
+        for neighbour in start.bindings.keys():
+            if neighbour.symbol=="H":
+                # Hydrogen of amino group
+                # These are actually layouted at a 45° angle
+                # TODO: fix the layout of this
+                # currently will just layout at -90°/+90° to the base binding
+                h.append(neighbour)
+            elif neighbour.symbol=="O":
+                # Oxygen of hydroxyamino group
+                o.append(neighbour)
+        
+        if len(h)==1 and len(o)==1:
+            # Hydroxyamino group
+            # Hydrogen clockwise, Hydroxyl straight
+            self.layout_pos_at_slot(start,h[0],LAYOUT_SLOT_CLOCKWISE[slot])
+            self.layout_pos_at_slot(start,o[0],slot)
+            
+            # Find second hydrogen
+            h = None
+            for neighbour in o[0].bindings.keys():
+                if neighbour.symbol=="H":
+                    h = neighbour
+                    break
+            else:
+                raise errors.UnsupportedGroupError("Only Amino and Hydroxyamino Nitrogen-based groups are currently supported by the layout")
+            self.layout_pos_at_slot(o[0],h,slot)
+        elif len(h)==2:
+            # Hydrogen 1
+            self.layout_pos_at_slot(start,h[0],LAYOUT_SLOT_CLOCKWISE[slot])
+            
+            # Hydrogen 2
+            self.layout_pos_at_slot(start,h[1],LAYOUT_SLOT_COUNTERCLOCKWISE[slot])
+        else:
+            raise errors.UnsupportedGroupError("Only Amino and Hydroxyamino Nitrogen-based Groups are currently supported by the layout")
+
     
     def layout_find_free_slot(self,atom,order=None):
         self.assertAtom(atom)
